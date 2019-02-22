@@ -1,8 +1,8 @@
 import math
-import pywaves
+import zbspy
 import axolotl_curve25519 as curve
 import os
-import pywaves.crypto as crypto
+import zbspy.crypto as crypto
 import time
 import struct
 import json
@@ -206,7 +206,7 @@ class Address(object):
         elif publicKey:
             self._generate(publicKey=publicKey)
         elif address:
-            if not pywaves.validateAddress(address):
+            if not zbspy.validateAddress(address):
                 raise ValueError("Invalid address")
             else:
                 self.address = address
@@ -214,8 +214,8 @@ class Address(object):
                 self.privateKey = privateKey
                 self.seed = seed
                 self.nonce = nonce
-        elif alias and not pywaves.OFFLINE:
-            self.address = pywaves.wrapper('/alias/by-alias/%s' % alias).get("address", "")
+        elif alias and not zbspy.OFFLINE:
+            self.address = zbspy.wrapper('/alias/by-alias/%s' % alias).get("address", "")
             self.publicKey = ''
             self.privateKey = ''
             self.seed = ''
@@ -227,38 +227,38 @@ class Address(object):
                 self._generate(privateKey=privateKey)
         else:
             self._generate(nonce=nonce)
-        if not pywaves.OFFLINE:
+        if not zbspy.OFFLINE:
             self.aliases = self.aliases()
 
     def __str__(self):
         if self.address:
             ab = []
             try:
-                assets_balances = pywaves.wrapper('/assets/balance/%s' % self.address)['balances']
+                assets_balances = zbspy.wrapper('/assets/balance/%s' % self.address)['balances']
                 for a in assets_balances:
                     if a['balance'] > 0:
                         ab.append("  %s (%s) = %d" % (a['assetId'], a['issueTransaction']['name'].encode('ascii', 'ignore'), a['balance']))
             except:
                 pass
-            return 'address = %s\npublicKey = %s\nprivateKey = %s\nseed = %s\nnonce = %d\nbalances:\n  Waves = %d%s' % (self.address, self.publicKey, self.privateKey, self.seed, self.nonce, self.balance(), '\n'+'\n'.join(ab) if ab else '')
+            return 'address = %s\npublicKey = %s\nprivateKey = %s\nseed = %s\nnonce = %d\nbalances:\n  Zbs = %d%s' % (self.address, self.publicKey, self.privateKey, self.seed, self.nonce, self.balance(), '\n'+'\n'.join(ab) if ab else '')
 
     __repr__ = __str__
 
     def balance(self, assetId='', confirmations=0):
         try:
             if assetId:
-                return pywaves.wrapper('/assets/balance/%s/%s' % (self.address, assetId))['balance']
+                return zbspy.wrapper('/assets/balance/%s/%s' % (self.address, assetId))['balance']
             else:
-                return pywaves.wrapper('/addresses/balance/%s%s' % (self.address, '' if confirmations==0 else '/%d' % confirmations))['balance']
+                return zbspy.wrapper('/addresses/balance/%s%s' % (self.address, '' if confirmations==0 else '/%d' % confirmations))['balance']
         except:
             return 0
 
     def assets(self):
-        req = pywaves.wrapper('/assets/balance/%s' % self.address)['balances']
+        req = zbspy.wrapper('/assets/balance/%s' % self.address)['balances']
         return [r['assetId'] for r in req]
 
     def aliases(self):
-        a = pywaves.wrapper('/alias/by-address/%s' % self.address)
+        a = zbspy.wrapper('/alias/by-address/%s' % self.address)
         if type(a)==list:
             for i in range(len(a)):
                 a[i] = a[i][8:]
@@ -291,22 +291,22 @@ class Address(object):
             else:
                 privKey = base58.b58decode(privateKey)
             pubKey = curve.generatePublicKey(privKey)
-        unhashedAddress = chr(1) + str(pywaves.CHAIN_ID) + crypto.hashChain(pubKey)[0:20]
+        unhashedAddress = chr(1) + str(zbspy.CHAIN_ID) + crypto.hashChain(pubKey)[0:20]
         addressHash = crypto.hashChain(crypto.str2bytes(unhashedAddress))[0:4]
         self.address = base58.b58encode(crypto.str2bytes(unhashedAddress + addressHash))
         self.publicKey = base58.b58encode(pubKey)
         if privKey != "":
             self.privateKey = base58.b58encode(privKey)
 
-    def issueAsset(self, name, description, quantity, decimals=0, reissuable=False, txFee=pywaves.DEFAULT_ASSET_FEE):
+    def issueAsset(self, name, description, quantity, decimals=0, reissuable=False, txFee=zbspy.DEFAULT_ASSET_FEE):
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         elif len(name) < 4 or len(name) > 16:
             msg = 'Asset name must be between 4 and 16 characters long'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             timestamp = int(time.time() * 1000)
             sData = b'\3' + \
@@ -332,13 +332,13 @@ class Address(object):
                 "fee": txFee,
                 "signature": signature
             })
-            req = pywaves.wrapper('/assets/broadcast/issue', data)
-            if pywaves.OFFLINE:
+            req = zbspy.wrapper('/assets/broadcast/issue', data)
+            if zbspy.OFFLINE:
                 return req
             else:
-                return pywaves.Asset(req['assetId'])
+                return zbspy.Asset(req['assetId'])
 
-    def reissueAsset(self, Asset, quantity, reissuable=False, txFee=pywaves.DEFAULT_TX_FEE):
+    def reissueAsset(self, Asset, quantity, reissuable=False, txFee=zbspy.DEFAULT_TX_FEE):
         timestamp = int(time.time() * 1000)
         sData = b'\5' + \
                 base58.b58decode(self.publicKey) + \
@@ -357,13 +357,13 @@ class Address(object):
             "fee": txFee,
             "signature": signature
         })
-        req = pywaves.wrapper('/assets/broadcast/reissue', data)
-        if pywaves.OFFLINE:
+        req = zbspy.wrapper('/assets/broadcast/reissue', data)
+        if zbspy.OFFLINE:
             return req
         else:
             return req.get('id', 'ERROR')
 
-    def burnAsset(self, Asset, quantity, txFee=pywaves.DEFAULT_TX_FEE):
+    def burnAsset(self, Asset, quantity, txFee=zbspy.DEFAULT_TX_FEE):
         timestamp = int(time.time() * 1000)
 
         sData = '\6' + \
@@ -381,26 +381,26 @@ class Address(object):
             "fee": txFee,
             "signature": signature
         })
-        req = pywaves.wrapper('/assets/broadcast/burn', data)
-        if pywaves.OFFLINE:
+        req = zbspy.wrapper('/assets/broadcast/burn', data)
+        if zbspy.OFFLINE:
             return req
         else:
             return req.get('id', 'ERROR')
 
-    def sendWaves(self, recipient, amount, attachment='', txFee=pywaves.DEFAULT_TX_FEE, timestamp=0):
+    def sendZbs(self, recipient, amount, attachment='', txFee=zbspy.DEFAULT_TX_FEE, timestamp=0):
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
 
         elif amount <= 0:
             msg = 'Amount must be > 0'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and self.balance() < amount + txFee:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and self.balance() < amount + txFee:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
 
         else:
             if timestamp == 0:
@@ -425,9 +425,9 @@ class Address(object):
                 "signature": signature
             })
 
-            return pywaves.wrapper('/assets/broadcast/transfer', data)
+            return zbspy.wrapper('/assets/broadcast/transfer', data)
 
-    def massTransferWaves(self, transfers, attachment='', timestamp=0):
+    def massTransferZbs(self, transfers, attachment='', timestamp=0):
         txFee = 100000 + (math.ceil((len(transfers) + 1) / 2 - 0.5)) * 100000
         totalAmount = 0
 
@@ -437,15 +437,15 @@ class Address(object):
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         elif len(transfers) > 100:
             msg = 'Too many recipients'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and self.balance() < totalAmount + txFee:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and self.balance() < totalAmount + txFee:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             if timestamp == 0:
                 timestamp = int(time.time() * 1000)
@@ -480,40 +480,40 @@ class Address(object):
                 ]
             })
 
-            return pywaves.wrapper('/transactions/broadcast', data)
+            return zbspy.wrapper('/transactions/broadcast', data)
 
-    def sendAsset(self, recipient, asset, amount, attachment='', feeAsset='', txFee=pywaves.DEFAULT_TX_FEE, timestamp=0):
+    def sendAsset(self, recipient, asset, amount, attachment='', feeAsset='', txFee=zbspy.DEFAULT_TX_FEE, timestamp=0):
         if not self.privateKey:
             msg = 'Asset not issued'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and asset and not asset.status():
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and asset and not asset.status():
             msg = 'Asset not issued'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         elif amount <= 0:
             msg = 'Amount must be > 0'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and asset and self.balance(asset.assetId) < amount:
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and asset and self.balance(asset.assetId) < amount:
             msg = 'Insufficient asset balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and not asset and self.balance() < amount:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and not asset and self.balance() < amount:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and not feeAsset and self.balance() < txFee:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and not feeAsset and self.balance() < txFee:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and feeAsset and self.balance(feeAsset.assetId) < txFee:
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and feeAsset and self.balance(feeAsset.assetId) < txFee:
             msg = 'Insufficient asset balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             if feeAsset:
-                feeInfos = pywaves.wrapper('/assets/details/' + feeAsset.assetId)
+                feeInfos = zbspy.wrapper('/assets/details/' + feeAsset.assetId)
                 if feeInfos['minSponsoredAssetFee']:
                     txFee = feeInfos['minSponsoredAssetFee']
             if timestamp == 0:
@@ -541,7 +541,7 @@ class Address(object):
                 "signature": signature
             })
 
-            return pywaves.wrapper('/assets/broadcast/transfer', data)
+            return zbspy.wrapper('/assets/broadcast/transfer', data)
 
     def massTransferAssets(self, transfers, asset, attachment='', timestamp=0):
         txFee = 100000 + (math.ceil((len(transfers) + 1) / 2 - 0.5)) * 100000
@@ -555,9 +555,9 @@ class Address(object):
             logging.error('Private key required')
         elif len(transfers) > 100:
             logging.error('Too many recipients')
-        elif not pywaves.OFFLINE and self.balance() < txFee:
-            logging.error('Insufficient Waves balance')
-        elif not pywaves.OFFLINE and self.balance(assetId=asset.assetId) < totalAmount:
+        elif not zbspy.OFFLINE and self.balance() < txFee:
+            logging.error('Insufficient Zbs balance')
+        elif not zbspy.OFFLINE and self.balance(assetId=asset.assetId) < totalAmount:
             logging.error('Insufficient %s balance' % asset.name)
         else:
             if timestamp == 0:
@@ -594,7 +594,7 @@ class Address(object):
                 ]
             })
 
-            return pywaves.wrapper('/transactions/broadcast', data)
+            return zbspy.wrapper('/transactions/broadcast', data)
 
     def dataTransaction(self, data, timestamp=0):
         if not self.privateKey:
@@ -652,16 +652,16 @@ class Address(object):
                     base64Encoded =  base64.b64encode(crypto.str2bytes(entry['value']))
                     entry['value'] = 'base64:' + crypto.bytes2str(base64Encoded)
             dataObjectJSON = json.dumps(dataObject)
-            return pywaves.wrapper('/transactions/broadcast', dataObjectJSON)
+            return zbspy.wrapper('/transactions/broadcast', dataObjectJSON)
 
-    def _postOrder(self, amountAsset, priceAsset, orderType, amount, price, maxLifetime=30*86400, matcherFee=pywaves.DEFAULT_MATCHER_FEE, timestamp=0):
+    def _postOrder(self, amountAsset, priceAsset, orderType, amount, price, maxLifetime=30*86400, matcherFee=zbspy.DEFAULT_MATCHER_FEE, timestamp=0):
         if timestamp == 0:
             timestamp = int(time.time() * 1000)
         expiration = timestamp + maxLifetime * 1000
         asset1 = b'\0' if amountAsset.assetId=='' else b'\1' + base58.b58decode(amountAsset.assetId)
         asset2 = b'\0' if priceAsset.assetId=='' else b'\1' + base58.b58decode(priceAsset.assetId)
         sData = base58.b58decode(self.publicKey) + \
-                base58.b58decode(pywaves.MATCHER_PUBLICKEY) + \
+                base58.b58decode(zbspy.MATCHER_PUBLICKEY) + \
                 asset1 + \
                 asset2 + \
                 orderType + \
@@ -674,7 +674,7 @@ class Address(object):
         otype = "buy" if orderType==b'\0' else "sell"
         data = json.dumps({
             "senderPublicKey": self.publicKey,
-            "matcherPublicKey": pywaves.MATCHER_PUBLICKEY,
+            "matcherPublicKey": zbspy.MATCHER_PUBLICKEY,
             "assetPair": {
                 "amountAsset": amountAsset.assetId,
                 "priceAsset": priceAsset.assetId,
@@ -687,35 +687,35 @@ class Address(object):
             "matcherFee": matcherFee,
             "signature": signature
         })
-        req = pywaves.wrapper('/matcher/orderbook', data, host=pywaves.MATCHER)
+        req = zbspy.wrapper('/matcher/orderbook', data, host=zbspy.MATCHER)
         print(req)
         id = -1
         if 'status' in req:
             if req['status'] == 'OrderRejected':
                 msg = 'Order Rejected - %s' % req['message']
                 logging.error(msg)
-                pywaves.throw_error(msg)
+                zbspy.throw_error(msg)
             elif req['status'] == 'OrderAccepted':
                 id = req['message']['id']
                 logging.info('Order Accepted - ID: %s' % id)
-        elif not pywaves.OFFLINE:
+        elif not zbspy.OFFLINE:
             logging.error(req)
-            pywaves.throw_error(req)
+            zbspy.throw_error(req)
         else:
             return req
         return id
 
     def cancelOrder(self, assetPair, order):
-        if not pywaves.OFFLINE:
+        if not zbspy.OFFLINE:
             if order.status() == 'Filled':
                 msg = "Order already filled"
                 logging.error(msg)
-                pywaves.throw_error(msg)
+                zbspy.throw_error(msg)
 
             elif not order.status():
                 msg = "Order not found"
                 logging.error(msg)
-                pywaves.throw_error(msg)
+                zbspy.throw_error(msg)
         sData = base58.b58decode(self.publicKey) + \
                 base58.b58decode(order.orderId)
         signature = crypto.sign(self.privateKey, sData)
@@ -724,8 +724,8 @@ class Address(object):
             "orderId": order.orderId,
             "signature": signature
         })
-        req = pywaves.wrapper('/matcher/orderbook/%s/%s/cancel' % ('WAVES' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId), data, host=pywaves.MATCHER)
-        if pywaves.OFFLINE:
+        req = zbspy.wrapper('/matcher/orderbook/%s/%s/cancel' % ('ZBS' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId), data, host=zbspy.MATCHER)
+        if zbspy.OFFLINE:
             return req
         else:
             id = -1
@@ -743,8 +743,8 @@ class Address(object):
             "orderId": orderId,
             "signature": signature
         })
-        req = pywaves.wrapper('/matcher/orderbook/%s/%s/cancel' % ('WAVES' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId), data, host=pywaves.MATCHER)
-        if pywaves.OFFLINE:
+        req = zbspy.wrapper('/matcher/orderbook/%s/%s/cancel' % ('ZBS' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId), data, host=zbspy.MATCHER)
+        if zbspy.OFFLINE:
             return req
         else:
             id = -1
@@ -753,50 +753,50 @@ class Address(object):
                 logging.info('Order Cancelled - ID: %s' % id)
             return id
 
-    def buy(self, assetPair, amount, price, maxLifetime=30 * 86400, matcherFee=pywaves.DEFAULT_MATCHER_FEE, timestamp=0):
+    def buy(self, assetPair, amount, price, maxLifetime=30 * 86400, matcherFee=zbspy.DEFAULT_MATCHER_FEE, timestamp=0):
         assetPair.refresh()
         normPrice = int(pow(10, assetPair.asset2.decimals - assetPair.asset1.decimals) * price)
         id = self._postOrder(assetPair.asset1, assetPair.asset2, b'\0', amount, normPrice, maxLifetime, matcherFee, timestamp)
-        if pywaves.OFFLINE:
+        if zbspy.OFFLINE:
             return id
         elif id != -1:
-            return pywaves.Order(id, assetPair, self)
+            return zbspy.Order(id, assetPair, self)
 
-    def sell(self, assetPair, amount, price, maxLifetime=30 * 86400, matcherFee=pywaves.DEFAULT_MATCHER_FEE, timestamp=0):
+    def sell(self, assetPair, amount, price, maxLifetime=30 * 86400, matcherFee=zbspy.DEFAULT_MATCHER_FEE, timestamp=0):
         assetPair.refresh()
         normPrice = int(pow(10, assetPair.asset2.decimals - assetPair.asset1.decimals) * price)
         id = self._postOrder(assetPair.asset1, assetPair.asset2, b'\1', amount, normPrice, maxLifetime, matcherFee, timestamp)
-        if pywaves.OFFLINE:
+        if zbspy.OFFLINE:
             return id
         elif id!=-1:
-            return pywaves.Order(id, assetPair, self)
+            return zbspy.Order(id, assetPair, self)
 
     def tradableBalance(self, assetPair):
         try:
-            req = pywaves.wrapper('/matcher/orderbook/%s/%s/tradableBalance/%s' % ('WAVES' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId, self.address), host=pywaves.MATCHER)
-            if pywaves.OFFLINE:
+            req = zbspy.wrapper('/matcher/orderbook/%s/%s/tradableBalance/%s' % ('ZBS' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId, self.address), host=zbspy.MATCHER)
+            if zbspy.OFFLINE:
                     return req
-            amountBalance = req['WAVES' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId]
-            priceBalance = req['WAVES' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId]
+            amountBalance = req['ZBS' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId]
+            priceBalance = req['ZBS' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId]
         except:
             amountBalance = 0
             priceBalance = 0
-        if not pywaves.OFFLINE:
+        if not zbspy.OFFLINE:
             return amountBalance, priceBalance
 
-    def lease(self, recipient, amount, txFee=pywaves.DEFAULT_LEASE_FEE, timestamp=0):
+    def lease(self, recipient, amount, txFee=zbspy.DEFAULT_LEASE_FEE, timestamp=0):
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         elif amount <= 0:
             msg = 'Amount must be > 0'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and self.balance() < amount + txFee:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and self.balance() < amount + txFee:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             if timestamp == 0:
                 timestamp = int(time.time() * 1000)
@@ -815,18 +815,18 @@ class Address(object):
                 "timestamp": timestamp,
                 "signature": signature
             })
-            req = pywaves.wrapper('/leasing/broadcast/lease', data)
+            req = zbspy.wrapper('/leasing/broadcast/lease', data)
             return req
 
-    def leaseCancel(self, leaseId, txFee=pywaves.DEFAULT_LEASE_FEE, timestamp=0):
+    def leaseCancel(self, leaseId, txFee=zbspy.DEFAULT_LEASE_FEE, timestamp=0):
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
-        elif not pywaves.OFFLINE and self.balance() < txFee:
-            msg = 'Insufficient Waves balance'
+            zbspy.throw_error(msg)
+        elif not zbspy.OFFLINE and self.balance() < txFee:
+            msg = 'Insufficient Zbs balance'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             if timestamp == 0:
                 timestamp = int(time.time() * 1000)
@@ -843,8 +843,8 @@ class Address(object):
                 "timestamp": timestamp,
                 "signature": signature
             })
-            req = pywaves.wrapper('/leasing/broadcast/cancel', data)
-            if pywaves.OFFLINE:
+            req = zbspy.wrapper('/leasing/broadcast/cancel', data)
+            if zbspy.OFFLINE:
                 return req
             elif 'leaseId' in req:
                 return req['leaseId']
@@ -860,7 +860,7 @@ class Address(object):
             "Timestamp": str(timestamp),
             "Signature": signature
         }
-        req = pywaves.wrapper('/matcher/orderbook/%s/%s/publicKey/%s' % ('WAVES' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId, self.publicKey), headers=data, host=pywaves.MATCHER)
+        req = zbspy.wrapper('/matcher/orderbook/%s/%s/publicKey/%s' % ('ZBS' if assetPair.asset1.assetId=='' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId=='' else assetPair.asset2.assetId, self.publicKey), headers=data, host=zbspy.MATCHER)
         return req
 
     def cancelOpenOrders(self, assetPair):
@@ -877,7 +877,7 @@ class Address(object):
                     "orderId": orderId,
                     "signature": signature
                 })
-                pywaves.wrapper('/matcher/orderbook/%s/%s/cancel' % ('WAVES' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId), data, host=pywaves.MATCHER)
+                zbspy.wrapper('/matcher/orderbook/%s/%s/cancel' % ('ZBS' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId), data, host=zbspy.MATCHER)
 
     def deleteOrderHistory(self, assetPair):
         orders = self.getOrderHistory(assetPair)
@@ -891,14 +891,14 @@ class Address(object):
                 "orderId": orderId,
                 "signature": signature
             })
-            pywaves.wrapper('/matcher/orderbook/%s/%s/delete' % ('WAVES' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'WAVES' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId), data, host=pywaves.MATCHER)
+            zbspy.wrapper('/matcher/orderbook/%s/%s/delete' % ('ZBS' if assetPair.asset1.assetId == '' else assetPair.asset1.assetId, 'ZBS' if assetPair.asset2.assetId == '' else assetPair.asset2.assetId), data, host=zbspy.MATCHER)
 
-    def createAlias(self, alias, txFee=pywaves.DEFAULT_ALIAS_FEE, timestamp=0):
-        aliasWithNetwork = b'\x02' + crypto.str2bytes(str(pywaves.CHAIN_ID)) + struct.pack(">H", len(alias)) + crypto.str2bytes(alias)
+    def createAlias(self, alias, txFee=zbspy.DEFAULT_ALIAS_FEE, timestamp=0):
+        aliasWithNetwork = b'\x02' + crypto.str2bytes(str(zbspy.CHAIN_ID)) + struct.pack(">H", len(alias)) + crypto.str2bytes(alias)
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             if timestamp == 0:
                 timestamp = int(time.time() * 1000)
@@ -916,9 +916,9 @@ class Address(object):
                 "timestamp": timestamp,
                 "signature": signature
             })
-            return pywaves.wrapper('/alias/broadcast/create', data)
+            return zbspy.wrapper('/alias/broadcast/create', data)
 
-    def sponsorAsset(self, assetId, minimalFeeInAssets, txFee=pywaves.DEFAULT_SPONSOR_FEE, timestamp=0):
+    def sponsorAsset(self, assetId, minimalFeeInAssets, txFee=zbspy.DEFAULT_SPONSOR_FEE, timestamp=0):
         if not self.privateKey:
             logging.error('Private key required')
         else:
@@ -946,10 +946,10 @@ class Address(object):
                 ]
             })
 
-            return pywaves.wrapper('/transactions/broadcast', data)
+            return zbspy.wrapper('/transactions/broadcast', data)
 
-    def setScript(self, scriptSource, txFee=pywaves.DEFAULT_SCRIPT_FEE, timestamp=0):
-        script = pywaves.wrapper('/utils/script/compile', scriptSource)['script'][7:]
+    def setScript(self, scriptSource, txFee=zbspy.DEFAULT_SCRIPT_FEE, timestamp=0):
+        script = zbspy.wrapper('/utils/script/compile', scriptSource)['script'][7:]
         if not self.privateKey:
             logging.error('Private key required')
         else:
@@ -959,7 +959,7 @@ class Address(object):
                 timestamp = int(time.time() * 1000)
             sData = b'\x0d' + \
                 b'\1' + \
-                crypto.str2bytes(str(pywaves.CHAIN_ID)) + \
+                crypto.str2bytes(str(zbspy.CHAIN_ID)) + \
                 base58.b58decode(self.publicKey) + \
                 b'\1' + \
                 struct.pack(">H", scriptLength) + \
@@ -980,10 +980,10 @@ class Address(object):
                 ]
             })
 
-            return pywaves.wrapper('/transactions/broadcast', data)
+            return zbspy.wrapper('/transactions/broadcast', data)
 
-    def setAssetScript(self, asset, scriptSource, txFee=pywaves.DEFAULT_ASSET_SCRIPT_FEE, timestamp=0):
-        script = pywaves.wrapper('/utils/script/compile', scriptSource)['script'][7:]
+    def setAssetScript(self, asset, scriptSource, txFee=zbspy.DEFAULT_ASSET_SCRIPT_FEE, timestamp=0):
+        script = zbspy.wrapper('/utils/script/compile', scriptSource)['script'][7:]
         if not self.privateKey:
             logging.error('Private key required')
         else:
@@ -993,7 +993,7 @@ class Address(object):
                 timestamp = int(time.time() * 1000)
             sData = b'\x0f' + \
                 b'\1' + \
-                crypto.str2bytes(str(pywaves.CHAIN_ID)) + \
+                crypto.str2bytes(str(zbspy.CHAIN_ID)) + \
                 base58.b58decode(self.publicKey) + \
                 base58.b58decode(asset.assetId) + \
                 struct.pack(">Q", txFee) + \
@@ -1017,25 +1017,25 @@ class Address(object):
             })
             print(data)
 
-            return pywaves.wrapper('/transactions/broadcast', data)
+            return zbspy.wrapper('/transactions/broadcast', data)
 
-    def issueSmartAsset(self, name, description, quantity, scriptSource, decimals=0, reissuable=False, txFee=pywaves.DEFAULT_ASSET_FEE):
-        script = pywaves.wrapper('/utils/script/compile', scriptSource)['script'][7:]
+    def issueSmartAsset(self, name, description, quantity, scriptSource, decimals=0, reissuable=False, txFee=zbspy.DEFAULT_ASSET_FEE):
+        script = zbspy.wrapper('/utils/script/compile', scriptSource)['script'][7:]
         if not self.privateKey:
             msg = 'Private key required'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         elif len(name) < 4 or len(name) > 16:
             msg = 'Asset name must be between 4 and 16 characters long'
             logging.error(msg)
-            pywaves.throw_error(msg)
+            zbspy.throw_error(msg)
         else:
             compiledScript = base64.b64decode(script)
             scriptLength = len(compiledScript)
             timestamp = int(time.time() * 1000)
             sData = b'\3' + \
                     b'\2' + \
-                    crypto.str2bytes(str(pywaves.CHAIN_ID)) + \
+                    crypto.str2bytes(str(zbspy.CHAIN_ID)) + \
                     base58.b58decode(self.publicKey) + \
                     struct.pack(">H", len(name)) + \
                     crypto.str2bytes(name) + \
@@ -1065,8 +1065,8 @@ class Address(object):
                 "script": 'base64:' + script
             })
             print(data)
-            req = pywaves.wrapper('/transactions/broadcast', data)
-            if pywaves.OFFLINE:
+            req = zbspy.wrapper('/transactions/broadcast', data)
+            if zbspy.OFFLINE:
                 return req
             else:
                 return req

@@ -1,6 +1,6 @@
-# Copyright (C) 2017 PyWaves Developers
+# Copyright (C) 2017 ZbsPy Developers
 #
-# This file is part of PyWaves.
+# This file is part of ZbsPy.
 #
 # It is subject to the license terms in the LICENSE file found in the top-level
 # directory of this distribution.
@@ -31,7 +31,7 @@ from .asset import *
 from .order import *
 
 OFFLINE = False
-NODE = 'https://nodes.wavesnodes.com'
+NODE = 'https://nodes.0bsnetwork.com'
 
 ADDRESS_VERSION = 1
 ADDRESS_CHECKSUM_LENGTH = 4
@@ -39,12 +39,11 @@ ADDRESS_HASH_LENGTH = 20
 ADDRESS_LENGTH = 1 + 1 + ADDRESS_CHECKSUM_LENGTH + ADDRESS_HASH_LENGTH
 
 CHAIN = 'mainnet'
-CHAIN_ID = 'W'
-#MATCHER = 'https://nodes.wavesnodes.com'
-MATCHER = 'http://matcher.wavesnodes.com'
+CHAIN_ID = 'Z'
+MATCHER = 'http://matcher.0bsnetwork.com'
 MATCHER_PUBLICKEY = ''
 
-DATAFEED = 'http://marketdata.wavesplatform.com'
+DATAFEED = 'http://marketdata.0bsnetwork.com'
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 console = logging.StreamHandler()
@@ -54,13 +53,13 @@ console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
 
-class PyWavesException(ValueError):
+class ZbsPyException(ValueError):
     pass
 
 
 def throw_error(msg):
     if THROW_EXCEPTION_ON_ERROR:
-        raise PyWavesException(msg)
+        raise ZbsPyException(msg)
 
 
 def setThrowOnError(throw=True):
@@ -85,7 +84,7 @@ def setChain(chain = CHAIN, chain_id = None):
     else:
         if chain.lower()=='mainnet' or chain.lower()=='w':
             CHAIN = 'mainnet'
-            CHAIN_ID = 'W'
+            CHAIN_ID = 'Z'
         elif chain.lower()=='hacknet' or chain.lower()=='u':
             CHAIN = 'hacknet'
             CHAIN_ID = 'U'
@@ -176,7 +175,7 @@ def validateAddress(address):
         return True
     return False
 
-WAVES = Asset('')
+ZBS = Asset('')
 BTC = Asset('8LQW8f7P5d5PZM7GtZEBgaqRPGSzS3DfPuiXrURJ4AJS')
 USD = Asset('Ft8X1v1LTa1ABafufpaCWyVj8KkaxUWE6xBhW6sNFJck')
 
